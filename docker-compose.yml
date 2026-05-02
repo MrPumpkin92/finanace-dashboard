@@ -1,0 +1,25 @@
+version: '3.8'
+
+services:
+  finance-dashboard:
+    build: .
+    ports:
+      - '${PORT:-3000}:3000'
+    environment:
+      NODE_ENV: development
+      AZURE_TENANT_ID: ${AZURE_TENANT_ID}
+      AZURE_CLIENT_ID: ${AZURE_CLIENT_ID}
+      AZURE_CLIENT_SECRET: ${AZURE_CLIENT_SECRET}
+      POWER_BI_WORKSPACE_ID: ${POWER_BI_WORKSPACE_ID}
+      POWER_BI_REPORT_ID: ${POWER_BI_REPORT_ID}
+      DB_PATH: /app/data/finance.db
+      CORS_ORIGIN: http://localhost:3000
+    volumes:
+      - ./data:/app/data
+      - ./uploads:/app/uploads
+    healthcheck:
+      test: ['CMD', 'wget', '--quiet', '--tries=1', '--spider', 'http://localhost:3000/api/health']
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s

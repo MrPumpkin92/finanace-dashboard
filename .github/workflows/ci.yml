@@ -1,0 +1,82 @@
+/**
+ * GitHub Actions Workflow
+ * CI/CD pipeline for testing and deployment
+ */
+name: CI/CD
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main, develop]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    
+    strategy:
+      matrix:
+        node-version: [18.x, 20.x]
+    
+    steps:
+      - uses: actions/checkout@v3
+      
+      - name: Use Node.js ${{ matrix.node-version }}
+        uses: actions/setup-node@v3
+        with:
+          node-version: ${{ matrix.node-version }}
+          cache: 'npm'
+      
+      - name: Install dependencies
+        run: npm ci
+      
+      - name: Lint
+        run: npm run lint
+      
+      - name: Type check
+        run: npm run typecheck
+      
+      - name: Run tests
+        run: npm test -- --run
+      
+      - name: Build
+        run: npm run build
+      
+      - name: Upload coverage
+        uses: codecov/codecov-action@v3
+        with:
+          files: ./coverage/coverage-final.json
+  
+  build:
+    needs: test
+    runs-on: ubuntu-latest
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    
+    steps:
+      - uses: actions/checkout@v3
+      
+      - name: Set up Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: '18.x'
+          cache: 'npm'
+      
+      - name: Install dependencies
+        run: npm ci
+      
+      - name: Build
+        run: npm run build
+      
+      - name: Build Docker image
+        run: docker build -t finance-dashboard:latest .
+      
+      - name: Test Docker image
+        run: |
+          docker run --rm \
+            -e NODE_ENV=test \
+            -e AZURE_TENANT_ID=test \
+            -e AZURE_CLIENT_ID=test \
+            -e AZURE_CLIENT_SECRET=test \
+            -e POWER_BI_WORKSPACE_ID=test \
+            -e POWER_BI_REPORT_ID=test \
+            finance-dashboard:latest npm run build
