@@ -158,12 +158,32 @@ export class TransactionRepository {
   }
 
   /**
-   * Delete a transaction
+   * Delete a transaction (hard delete - be careful!)
+   * @deprecated Use softDelete instead for financial records
    */
   public delete(id: string): boolean {
     const stmt = this.db.prepare('DELETE FROM transactions WHERE id = ?');
     const result = stmt.run(id);
     return result.changes > 0;
+  }
+
+  /**
+   * Soft delete a transaction (set deletedAt timestamp)
+   * Preserves the record for audit purposes
+   */
+  public softDelete(id: string): Transaction {
+    const transaction = this.getById(id);
+    if (!transaction) {
+      throw new Error(`Transaction with ID ${id} not found`);
+    }
+
+    const now = new Date().toISOString();
+    const stmt = this.db.prepare(
+      'UPDATE transactions SET deletedAt = ?, updatedAt = ? WHERE id = ?'
+    );
+    stmt.run(now, now, id);
+
+    return this.getById(id) as Transaction;
   }
 
   /**

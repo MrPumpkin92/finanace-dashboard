@@ -1,109 +1,138 @@
 /**
  * Database Module
- * Handles SQLite database connection and migrations
+ * Handles SQLite database connection, migrations, and default seeding.
  */
 import Database from 'better-sqlite3';
-import path from 'path';
-import fs from 'fs';
+import crypto from 'node:crypto';
+import fs from 'node:fs';
+import path from 'node:path';
 
-const DB_PATH = process.env.DB_PATH || './data/finance.db';
-const DB_DIR = path.dirname(DB_PATH);
+import { DEFAULT_CATEGORIES } from '../models/Category.js';
 
-let db: Database.Database | null = null;
+const DB_PATH = process.env.DB_PATH || path.resolve(process.cwd(), 'data', 'finance.db');
+const DB_DIR = DB_PATH === ':memory:' ? null : path.dirname(DB_PATH);
 
-/**
- * Initialize database connection
- */
-export function initializeDatabase(): Database.Database {
-  if (db) {
-    return db;
-  }
+let dbInstance: Database.Database | null = null;
 
-  // Ensure data directory exists
-  if (!fs.existsSync(DB_DIR)) {
+function createDatabase(): Database.Database {
+  if (DB_DIR && !fs.existsSync(DB_DIR)) {
     fs.mkdirSync(DB_DIR, { recursive: true });
   }
 
-  db = new Database(DB_PATH);
-
-  // Enable foreign keys
-  db.pragma('foreign_keys = ON');
-
-  // Run migrations
-  runMigrations(db);
-
-  return db;
+  const database = new Database(DB_PATH);
+  database.pragma('foreign_keys = ON');
+  runMigrations(database);
+  return database;
 }
 
 /**
- * Get database connection
+ * Initialize database connection.
+ */
+export function initializeDatabase(): Database.Database {
+  if (!dbInstance) {
+    dbInstance = createDatabase();
+  }
+
+  return dbInstance;
+}
+
+/**
+ * Exported singleton database instance.
+ */
+export const db = initializeDatabase();
+
+/**
+ * Get database connection.
  */
 export function getDatabase(): Database.Database {
-  if (!db) {
-    return initializeDatabase();
-  }
-  return db;
+  return initializeDatabase();
 }
 
 /**
- * Close database connection
+ * Close database connection.
  */
 export function closeDatabase(): void {
-  if (db) {
-    db.close();
-    db = null;
+  if (dbInstance) {
+    dbInstance.close();
+    dbInstance = null;
   }
 }
 
-/**
- * Run database migrations
- */
 function runMigrations(database: Database.Database): void {
-  // Create categories table
   database.exec(`
     CREATE TABLE IF NOT EXISTS categories (
       id TEXT PRIMARY KEY,
       name TEXT NOT NULL UNIQUE,
       type TEXT NOT NULL CHECK(type IN ('income', 'expense', 'transfer')),
-      description TEXT,
-      color TEXT,
+      color TEXT NOT NULL,
       icon TEXT,
-      isActive BOOLEAN NOT NULL DEFAULT 1,
+      isDefault INTEGER NOT NULL DEFAULT 1,
+      description TEXT,
+      isActive INTEGER NOT NULL DEFAULT 1,
       createdAt TEXT NOT NULL,
       updatedAt TEXT NOT NULL
-    )
-  `);
+    );
 
-  // Create transactions table
-  database.exec(`
     CREATE TABLE IF NOT EXISTS transactions (
       id TEXT PRIMARY KEY,
-      userId TEXT NOT NULL,
-      description TEXT NOT NULL,
-      amount REAL NOT NULL CHECK(amount > 0),
-      categoryId TEXT NOT NULL,
-      type TEXT NOT NULL CHECK(type IN ('income', 'expense')),
       date TEXT NOT NULL,
-      createdAt TEXT NOT NULL,
-      updatedAt TEXT NOT NULL,
+      amount REAL NOT NULL CHECK(amount > 0),
+      type TEXT NOT NULL CHECK(type IN ('income', 'expense')),
+      description TEXT NOT NULL,
+      category_id TEXT NOT NULL REFERENCES categories(id),
       notes TEXT,
-      source TEXT CHECK(source IN ('manual', 'csv-import')),
-      FOREIGN KEY(categoryId) REFERENCES categories(id)
-    )
-  `);
+      source TEXT NOT NULL DEFAULT 'manual' CHECK(source IN ('manual', 'csv_import', 'csv-import')),
+      import_hash TEXT,
+      created_at TEXT NOT NULL,
+      deleted_at TEXT,
+      userId TEXT,
+      categoryId TEXT,
+      createdAt TEXT,
+      updatedAt TEXT
+    );
 
-  // Create indices for common queries
-  database.exec(`
-    CREATE INDEX IF NOT EXISTS idx_transactions_userId ON transactions(userId);
-    CREATE INDEX IF NOT EXISTS idx_transactions_categoryId ON transactions(categoryId);
+    CREATE UNIQUE INDEX IF NOT EXISTS idx_transactions_import_hash
+      ON transactions(import_hash)
+      WHERE import_hash IS NOT NULL;
+
+    CREATE INDEX IF NOT EXISTS idx_transactions_category_id ON transactions(category_id);
     CREATE INDEX IF NOT EXISTS idx_transactions_date ON transactions(date);
     CREATE INDEX IF NOT EXISTS idx_transactions_type ON transactions(type);
-    CREATE INDEX IF NOT EXISTS idx_transactions_userId_date ON transactions(userId, date);
+    CREATE INDEX IF NOT EXISTS idx_transactions_deleted_at ON transactions(deleted_at);
   `);
+
+  seedDefaultCategories(database);
+}
+
+function seedDefaultCategories(database: Database.Database): void {
+  const now = new Date().toISOString();
+  const insertCategory = database.prepare(`
+    INSERT OR IGNORE INTO categories (
+      id, name, type, color, icon, isDefault, description, isActive, createdAt, updatedAt
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+  `);
+
+  const createId = (name: string): string =>
+    crypto.createHash('sha256').update(`default-category:${name}`).digest('hex').slice(0, 32);
+
+  for (const category of DEFAULT_CATEGORIES) {
+    insertCategory.run(
+      createId(category.name),
+      category.name,
+      category.type,
+      category.color,
+      category.icon || null,
+      category.isDefault ?? 1,
+      category.description || null,
+      category.isActive ? 1 : 0,
+      now,
+      now
+    );
+  }
 }
 
 /**
- * Run migrations from CLI
+ * Run migrations from CLI.
  */
 if (import.meta.url === `file://${process.argv[1]}`) {
   try {
@@ -114,3 +143,5 @@ if (import.meta.url === `file://${process.argv[1]}`) {
     process.exit(1);
   }
 }
+
+export default db;

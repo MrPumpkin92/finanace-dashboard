@@ -2,7 +2,7 @@
  * Database Seed Script
  * Populates default categories on first run
  */
-import { getDatabase, initializeDatabase } from './db.js';
+import { initializeDatabase } from './db.js';
 import { CategoryRepository } from './categoryRepo.js';
 import { DEFAULT_CATEGORIES } from '../models/Category.js';
 

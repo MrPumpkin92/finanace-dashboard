@@ -2,6 +2,72 @@
  * Power BI Models
  * Interfaces for Power BI API integration
  */
+
+export interface Workspace {
+  id: string;
+  name: string;
+  type: 'Workspace' | 'PersonalGroupWorkspace' | 'Group';
+  state: 'Active' | 'Deleted' | 'Archived';
+  isReadOnly: boolean;
+  isOnDedicatedCapacity: boolean;
+  capacityId?: string;
+  description?: string;
+  logoUrl?: string;
+}
+
+export interface Report {
+  id: string;
+  name: string;
+  description?: string;
+  webUrl: string;
+  embedUrl: string;
+  datasetId: string;
+  createdDateTime?: string;
+  modifiedDateTime?: string;
+}
+
+export interface Dataset {
+  id: string;
+  name: string;
+  description?: string;
+  configuredBy?: string;
+  isRefreshable: boolean;
+  isEffectiveIdentityRequired: boolean;
+  isEffectiveIdentityRolesRequired: boolean;
+  tables?: DatasetTable[];
+  createdDate?: string;
+  contentProviderType?: string;
+  qnaSettings?: {
+    isQnaEnabled: boolean;
+  };
+}
+
+export interface DatasetTable {
+  name: string;
+  columns: DatasetColumn[];
+}
+
+export interface DatasetColumn {
+  name: string;
+  dataType: string;
+}
+
+export interface RefreshHistory {
+  id: string;
+  refreshType: 'OnDemand' | 'Scheduled' | 'Manual';
+  startTime: string;
+  endTime: string;
+  status: 'Unknown' | 'InProgress' | 'Completed' | 'Failed' | 'Disabled';
+  requestId?: string;
+  serviceExceptionJson?: string;
+}
+
+export interface EmbedToken {
+  token: string;
+  tokenId: string;
+  expiration: string;
+}
+
 export interface PowerBIReportConfig {
   workspaceId: string;
   reportId: string;

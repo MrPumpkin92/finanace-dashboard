@@ -4,17 +4,22 @@
  */
 export interface Transaction {
   id: string;
-  userId: string;
   description: string;
   amount: number;
   categoryId: string;
+  category_id?: string;
   categoryName?: string;
   type: 'income' | 'expense';
   date: string; // ISO 8601 date format
-  createdAt: string;
-  updatedAt: string;
+  createdAt?: string;
+  updatedAt?: string;
+  created_at?: string;
+  deletedAt?: string | null; // Soft delete timestamp
+  deleted_at?: string | null;
   notes?: string;
-  source?: 'manual' | 'csv-import';
+  source?: 'manual' | 'csv-import' | 'csv_import';
+  import_hash?: string;
+  userId?: string;
 }
 
 export interface CreateTransactionInput {
@@ -24,7 +29,7 @@ export interface CreateTransactionInput {
   type: 'income' | 'expense';
   date: string;
   notes?: string;
-  source?: 'manual' | 'csv-import';
+  source?: 'manual' | 'csv-import' | 'csv_import';
 }
 
 export interface UpdateTransactionInput {

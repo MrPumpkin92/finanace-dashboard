@@ -3,176 +3,255 @@
  * Handles communication with Power BI REST API
  */
 import axios, { AxiosInstance } from 'axios';
-import { getPowerBIAccessToken } from '../auth/auth.js';
+import { getAuthClient } from '../auth/authClient.js';
+import { Logger } from '../utils/logger.js';
+import { ApiError } from '../utils/errors.js';
 import {
-  PowerBIAccessToken,
-  PowerBIEmbedToken,
-  PowerBIEmbedConfig,
+  Workspace,
+  Report,
+  RefreshHistory,
+  EmbedToken,
 } from '../models/PowerBI.js';
 
 const POWER_BI_API_BASE_URL = 'https://api.powerbi.com/v1.0/myorg';
 
+/**
+ * Power BI REST API Client
+ * Manages authenticated requests to Power BI service
+ */
 export class PowerBIClient {
   private apiClient: AxiosInstance | null = null;
-  private accessToken: string | null = null;
-  private tokenExpiry: Date | null = null;
 
   /**
-   * Initialize API client with authentication
+   * Initialize the API client with authenticated axios instance
    */
-  private async ensureAuthenticated(): Promise<void> {
-    const now = new Date();
-
-    // Check if token is still valid (with 5 minute buffer)
-    if (
-      this.accessToken &&
-      this.tokenExpiry &&
-      this.tokenExpiry.getTime() - now.getTime() > 5 * 60 * 1000
-    ) {
-      return;
+  private async initializeClient(): Promise<AxiosInstance> {
+    if (this.apiClient) {
+      return this.apiClient;
     }
 
-    // Get new token
-    this.accessToken = await getPowerBIAccessToken();
-    this.tokenExpiry = new Date(now.getTime() + 60 * 60 * 1000); // Token valid for 1 hour
+    const authClient = getAuthClient();
+    const token = await authClient.acquireToken();
 
-    // Create or update axios instance with new token
     this.apiClient = axios.create({
       baseURL: POWER_BI_API_BASE_URL,
       headers: {
-        Authorization: `Bearer ${this.accessToken}`,
+        Authorization: `Bearer ${token}`,
         'Content-Type': 'application/json',
       },
+      timeout: 30000,
     });
+
+    // Add response interceptor to handle token refresh on 401
+    this.apiClient.interceptors.response.use(
+      (response) => response,
+      async (error) => {
+        if (error.response?.status === 401) {
+          Logger.warn('Received 401 from Power BI API, refreshing token');
+          const authClient = getAuthClient();
+          const newToken = await authClient.refreshToken();
+          if (this.apiClient) {
+            this.apiClient.defaults.headers.Authorization = `Bearer ${newToken}`;
+          }
+          return this.apiClient!.request(error.config);
+        }
+        return Promise.reject(error);
+      }
+    );
+
+    return this.apiClient;
   }
 
   /**
-   * Get embed token for Power BI report
+   * Get all workspaces the service principal has access to
+   * @returns {Promise<Workspace[]>} List of workspaces
+   * @throws {ApiError} If request fails
    */
-  public async getEmbedToken(reportId: string): Promise<PowerBIEmbedConfig> {
+  public async getWorkspaces(): Promise<Workspace[]> {
     try {
-      await this.ensureAuthenticated();
+      const client = await this.initializeClient();
+      const response = await client.get<{ value: Workspace[] }>('/groups');
+      
+      Logger.info('Retrieved Power BI workspaces', {
+        count: response.data.value.length,
+      });
 
-      if (!this.apiClient) {
-        throw new Error('API client not initialized');
-      }
-
-      const workspaceId = process.env.POWER_BI_WORKSPACE_ID;
-      if (!workspaceId) {
-        throw new Error('POWER_BI_WORKSPACE_ID not configured');
-      }
-
-      // Request embed token
-      const response = await this.apiClient.post(
-        `/groups/${workspaceId}/reports/${reportId}/GenerateToken`,
-        {
-          accessLevel: 'View',
-          lifetimeInMinutes: 60,
-        }
-      );
-
-      const tokenData = response.data as PowerBIEmbedToken;
-
-      // Get embed URL
-      const reportResponse = await this.apiClient.get(
-        `/groups/${workspaceId}/reports/${reportId}`
-      );
-      const embedUrl = reportResponse.data.embedUrl as string;
-
-      return {
-        reportId,
-        embedUrl,
-        accessToken: tokenData.token,
-        tokenExpiry: new Date(tokenData.expiration),
-      };
+      return response.data.value;
     } catch (error) {
-      console.error('Error getting embed token:', error);
-      throw new Error('Failed to generate Power BI embed token');
+      Logger.error('Failed to fetch Power BI workspaces', {
+        errorType: error instanceof Error ? error.name : typeof error,
+        errorMessage: error instanceof Error ? error.message : String(error),
+      });
+      throw new ApiError('Failed to fetch Power BI workspaces', 500);
     }
   }
 
   /**
-   * Refresh Power BI dataset
+   * Get all reports in a workspace
+   * @param {string} workspaceId The workspace ID
+   * @returns {Promise<Report[]>} List of reports in the workspace
+   * @throws {ApiError} If request fails
    */
-  public async refreshDataset(datasetId: string): Promise<string> {
+  public async getReports(workspaceId: string): Promise<Report[]> {
     try {
-      await this.ensureAuthenticated();
+      const client = await this.initializeClient();
+      const response = await client.get<{ value: Report[] }>(
+        `/groups/${workspaceId}/reports`
+      );
 
-      if (!this.apiClient) {
-        throw new Error('API client not initialized');
-      }
+      Logger.info('Retrieved Power BI reports', {
+        workspaceId,
+        count: response.data.value.length,
+      });
 
-      const response = await this.apiClient.post(
-        `/datasets/${datasetId}/refreshes`,
+      return response.data.value;
+    } catch (error) {
+      Logger.error('Failed to fetch Power BI reports', {
+        workspaceId,
+        errorType: error instanceof Error ? error.name : typeof error,
+        errorMessage: error instanceof Error ? error.message : String(error),
+      });
+      throw new ApiError('Failed to fetch Power BI reports', 500);
+    }
+  }
+
+  /**
+   * Get a specific report by ID
+   * @param {string} workspaceId The workspace ID
+   * @param {string} reportId The report ID
+   * @returns {Promise<Report>} Report details
+   * @throws {ApiError} If request fails or report not found
+   */
+  public async getReport(workspaceId: string, reportId: string): Promise<Report> {
+    try {
+      const client = await this.initializeClient();
+      const response = await client.get<Report>(
+        `/groups/${workspaceId}/reports/${reportId}`
+      );
+
+      Logger.info('Retrieved Power BI report', {
+        workspaceId,
+        reportId,
+      });
+
+      return response.data;
+    } catch (error) {
+      Logger.error('Failed to fetch Power BI report', {
+        workspaceId,
+        reportId,
+        errorType: error instanceof Error ? error.name : typeof error,
+        errorMessage: error instanceof Error ? error.message : String(error),
+      });
+      throw new ApiError('Failed to fetch Power BI report', 500);
+    }
+  }
+
+  /**
+   * Trigger a refresh of a Power BI dataset
+   * @param {string} workspaceId The workspace ID
+   * @param {string} datasetId The dataset ID
+   * @returns {Promise<void>}
+   * @throws {ApiError} If request fails
+   */
+  public async refreshDataset(workspaceId: string, datasetId: string): Promise<void> {
+    try {
+      const client = await this.initializeClient();
+      await client.post(
+        `/groups/${workspaceId}/datasets/${datasetId}/refreshes`,
         {}
       );
 
-      const requestId = response.data.value as string;
-      return requestId;
+      Logger.info('Triggered Power BI dataset refresh', {
+        workspaceId,
+        datasetId,
+      });
     } catch (error) {
-      console.error('Error refreshing dataset:', error);
-      throw new Error('Failed to refresh Power BI dataset');
+      Logger.error('Failed to trigger dataset refresh', {
+        workspaceId,
+        datasetId,
+        errorType: error instanceof Error ? error.name : typeof error,
+        errorMessage: error instanceof Error ? error.message : String(error),
+      });
+      throw new ApiError('Failed to trigger dataset refresh', 500);
     }
   }
 
   /**
-   * Get dataset refresh history
+   * Get refresh history for a dataset
+   * @param {string} workspaceId The workspace ID
+   * @param {string} datasetId The dataset ID
+   * @returns {Promise<RefreshHistory[]>} List of refresh history entries
+   * @throws {ApiError} If request fails
    */
   public async getRefreshHistory(
-    datasetId: string,
-    top: number = 10
-  ): Promise<Array<{ id: string; status: string; startTime?: string; endTime?: string }>> {
+    workspaceId: string,
+    datasetId: string
+  ): Promise<RefreshHistory[]> {
     try {
-      await this.ensureAuthenticated();
-
-      if (!this.apiClient) {
-        throw new Error('API client not initialized');
-      }
-
-      const response = await this.apiClient.get(
-        `/datasets/${datasetId}/refreshes?$top=${top}`
+      const client = await this.initializeClient();
+      const response = await client.get<{ value: RefreshHistory[] }>(
+        `/groups/${workspaceId}/datasets/${datasetId}/refreshes`,
+        {
+          params: {
+            $top: 100,
+          },
+        }
       );
 
-      const refreshes = response.data.value as Array<{
-        id: string;
-        status: string;
-        startTime?: string;
-        endTime?: string;
-      }>;
-      return refreshes;
+      Logger.info('Retrieved Power BI refresh history', {
+        workspaceId,
+        datasetId,
+        count: response.data.value.length,
+      });
+
+      return response.data.value;
     } catch (error) {
-      console.error('Error getting refresh history:', error);
-      throw new Error('Failed to retrieve Power BI refresh history');
+      Logger.error('Failed to fetch refresh history', {
+        workspaceId,
+        datasetId,
+        errorType: error instanceof Error ? error.name : typeof error,
+        errorMessage: error instanceof Error ? error.message : String(error),
+      });
+      throw new ApiError('Failed to fetch refresh history', 500);
     }
   }
 
   /**
-   * Get report pages
+   * Generate an embed token for a report
+   * @param {string} workspaceId The workspace ID
+   * @param {string} reportId The report ID
+   * @returns {Promise<EmbedToken>} Embed token and metadata
+   * @throws {ApiError} If request fails
    */
-  public async getReportPages(reportId: string): Promise<Array<{ name: string; displayName: string }>> {
+  public async getEmbedToken(workspaceId: string, reportId: string): Promise<EmbedToken> {
     try {
-      await this.ensureAuthenticated();
-
-      if (!this.apiClient) {
-        throw new Error('API client not initialized');
-      }
-
-      const workspaceId = process.env.POWER_BI_WORKSPACE_ID;
-      if (!workspaceId) {
-        throw new Error('POWER_BI_WORKSPACE_ID not configured');
-      }
-
-      const response = await this.apiClient.get(
-        `/groups/${workspaceId}/reports/${reportId}/pages`
+      const client = await this.initializeClient();
+      const response = await client.post<EmbedToken>(
+        `/groups/${workspaceId}/reports/${reportId}/GenerateToken`,
+        {
+          accessLevel: 'View',
+          allowSaveAs: false,
+        }
       );
 
-      const pages = response.data.value as Array<{ name: string; displayName: string }>;
-      return pages;
+      Logger.info('Generated Power BI embed token', {
+        workspaceId,
+        reportId,
+        expirationTime: response.data.expiration,
+      });
+
+      return response.data;
     } catch (error) {
-      console.error('Error getting report pages:', error);
-      throw new Error('Failed to retrieve Power BI report pages');
+      Logger.error('Failed to generate embed token', {
+        workspaceId,
+        reportId,
+        errorType: error instanceof Error ? error.name : typeof error,
+        errorMessage: error instanceof Error ? error.message : String(error),
+      });
+      throw new ApiError('Failed to generate embed token', 500);
     }
   }
 }
 
+// Export singleton instance
 export const powerBIClient = new PowerBIClient();
