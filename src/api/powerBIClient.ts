@@ -21,6 +21,15 @@ const POWER_BI_API_BASE_URL = 'https://api.powerbi.com/v1.0/myorg';
  */
 export class PowerBIClient {
   private apiClient: AxiosInstance | null = null;
+  private readonly maxRetryAttempts: number;
+  private readonly baseRetryDelayMs: number;
+  private readonly sleep: (ms: number) => Promise<void>;
+
+  constructor(options: { maxRetryAttempts?: number; baseRetryDelayMs?: number; sleep?: (ms: number) => Promise<void> } = {}) {
+    this.maxRetryAttempts = options.maxRetryAttempts ?? 3;
+    this.baseRetryDelayMs = options.baseRetryDelayMs ?? 500;
+    this.sleep = options.sleep ?? ((ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms)));
+  }
 
   /**
    * Initialize the API client with authenticated axios instance
@@ -62,6 +71,32 @@ export class PowerBIClient {
     return this.apiClient;
   }
 
+  private async requestWith429Retry<T>(operation: () => Promise<T>): Promise<T> {
+    let lastError: unknown;
+
+    for (let attempt = 1; attempt <= this.maxRetryAttempts; attempt += 1) {
+      try {
+        return await operation();
+      } catch (error) {
+        lastError = error;
+        const status = axios.isAxiosError(error) ? error.response?.status : undefined;
+
+        if (status !== 429 || attempt === this.maxRetryAttempts) {
+          throw error;
+        }
+
+        const backoffMs = this.baseRetryDelayMs * 2 ** (attempt - 1);
+        Logger.warn('Power BI API rate limited; retrying request', {
+          attempt,
+          backoffMs,
+        });
+        await this.sleep(backoffMs);
+      }
+    }
+
+    throw lastError instanceof Error ? lastError : new Error('Power BI request failed');
+  }
+
   /**
    * Get all workspaces the service principal has access to
    * @returns {Promise<Workspace[]>} List of workspaces
@@ -70,7 +105,7 @@ export class PowerBIClient {
   public async getWorkspaces(): Promise<Workspace[]> {
     try {
       const client = await this.initializeClient();
-      const response = await client.get<{ value: Workspace[] }>('/groups');
+      const response = await this.requestWith429Retry(() => client.get<{ value: Workspace[] }>('/groups'));
       
       Logger.info('Retrieved Power BI workspaces', {
         count: response.data.value.length,
@@ -95,8 +130,8 @@ export class PowerBIClient {
   public async getReports(workspaceId: string): Promise<Report[]> {
     try {
       const client = await this.initializeClient();
-      const response = await client.get<{ value: Report[] }>(
-        `/groups/${workspaceId}/reports`
+      const response = await this.requestWith429Retry(() =>
+        client.get<{ value: Report[] }>(`/groups/${workspaceId}/reports`)
       );
 
       Logger.info('Retrieved Power BI reports', {
@@ -125,8 +160,8 @@ export class PowerBIClient {
   public async getReport(workspaceId: string, reportId: string): Promise<Report> {
     try {
       const client = await this.initializeClient();
-      const response = await client.get<Report>(
-        `/groups/${workspaceId}/reports/${reportId}`
+      const response = await this.requestWith429Retry(() =>
+        client.get<Report>(`/groups/${workspaceId}/reports/${reportId}`)
       );
 
       Logger.info('Retrieved Power BI report', {
@@ -156,9 +191,8 @@ export class PowerBIClient {
   public async refreshDataset(workspaceId: string, datasetId: string): Promise<void> {
     try {
       const client = await this.initializeClient();
-      await client.post(
-        `/groups/${workspaceId}/datasets/${datasetId}/refreshes`,
-        {}
+      await this.requestWith429Retry(() =>
+        client.post(`/groups/${workspaceId}/datasets/${datasetId}/refreshes`, {})
       );
 
       Logger.info('Triggered Power BI dataset refresh', {
@@ -189,13 +223,12 @@ export class PowerBIClient {
   ): Promise<RefreshHistory[]> {
     try {
       const client = await this.initializeClient();
-      const response = await client.get<{ value: RefreshHistory[] }>(
-        `/groups/${workspaceId}/datasets/${datasetId}/refreshes`,
-        {
+      const response = await this.requestWith429Retry(() =>
+        client.get<{ value: RefreshHistory[] }>(`/groups/${workspaceId}/datasets/${datasetId}/refreshes`, {
           params: {
             $top: 100,
           },
-        }
+        })
       );
 
       Logger.info('Retrieved Power BI refresh history', {
@@ -228,8 +261,8 @@ export class PowerBIClient {
   ): Promise<Array<Record<string, unknown>>> {
     try {
       const client = await this.initializeClient();
-      const response = await client.get<{ value: Array<Record<string, unknown>> }>(
-        `/groups/${workspaceId}/reports/${reportId}/pages`
+      const response = await this.requestWith429Retry(() =>
+        client.get<{ value: Array<Record<string, unknown>> }>(`/groups/${workspaceId}/reports/${reportId}/pages`)
       );
 
       Logger.info('Retrieved Power BI report pages', {
@@ -260,12 +293,11 @@ export class PowerBIClient {
   public async getEmbedToken(workspaceId: string, reportId: string): Promise<EmbedToken> {
     try {
       const client = await this.initializeClient();
-      const response = await client.post<EmbedToken>(
-        `/groups/${workspaceId}/reports/${reportId}/GenerateToken`,
-        {
+      const response = await this.requestWith429Retry(() =>
+        client.post<EmbedToken>(`/groups/${workspaceId}/reports/${reportId}/GenerateToken`, {
           accessLevel: 'View',
           allowSaveAs: false,
-        }
+        })
       );
 
       Logger.info('Generated Power BI embed token', {

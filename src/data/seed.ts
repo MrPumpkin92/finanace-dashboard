@@ -8,19 +8,15 @@ import { DEFAULT_CATEGORIES } from '../models/Category.js';
 
 async function seedDatabase(): Promise<void> {
   try {
-    // Initialize database and run migrations
     initializeDatabase();
 
     const categoryRepo = new CategoryRepository();
-
-    // Check if categories already exist
     const existingCategories = categoryRepo.getAll();
     if (existingCategories.length > 0) {
       console.info('✓ Categories already seeded, skipping...');
       return;
     }
 
-    // Create default categories
     let createdCount = 0;
     for (const category of DEFAULT_CATEGORIES) {
       try {
@@ -31,9 +27,8 @@ async function seedDatabase(): Promise<void> {
           color: category.color,
           icon: category.icon,
         });
-        createdCount++;
+        createdCount += 1;
       } catch (error) {
-        // Skip if category already exists (race condition in concurrent environments)
         console.warn(`Warning: Could not create category ${category.name}:`, error);
       }
     }
@@ -46,8 +41,8 @@ async function seedDatabase(): Promise<void> {
 }
 
 // Run seed if executed directly
-if (import.meta.url === `file://${process.argv[1]}`) {
-  seedDatabase().catch((error) => {
+if (process.argv[1] && /[\\/]seed\.(ts|js)$/.test(process.argv[1])) {
+  void seedDatabase().catch((error) => {
     console.error('Seed script error:', error);
     process.exit(1);
   });

@@ -15,6 +15,11 @@ interface CachedToken {
   expiresAt: number;
 }
 
+type ConfidentialClientLike = Pick<
+  ConfidentialClientApplication,
+  'acquireTokenByClientCredential'
+>;
+
 /**
  * Token acquisition response from MSAL
  */
@@ -23,7 +28,7 @@ interface CachedToken {
  * Manages token acquisition and caching with automatic refresh
  */
 class AuthClient {
-  private confidentialClient: ConfidentialClientApplication | null = null;
+  private confidentialClient: ConfidentialClientLike | null = null;
   private cachedToken: CachedToken | null = null;
   private readonly tokenRefreshBufferMs = 60 * 1000; // 60 seconds before expiry
   private readonly powerBIScope = 'https://analysis.windows.net/powerbi/api/.default';
@@ -56,7 +61,9 @@ class AuthClient {
       },
     };
 
-    this.confidentialClient = new ConfidentialClientApplication(config);
+    this.confidentialClient = authClientFactory
+      ? authClientFactory()
+      : new ConfidentialClientApplication(config);
     Logger.info('Azure AD authentication client initialized');
   }
 
@@ -204,6 +211,7 @@ class AuthClient {
 
 // Singleton instance
 let instance: AuthClient | null = null;
+let authClientFactory: (() => ConfidentialClientLike) | null = null;
 
 /**
  * Get or create the singleton AuthClient instance
@@ -214,6 +222,17 @@ export function getAuthClient(): AuthClient {
     instance = new AuthClient();
   }
   return instance;
+}
+
+/**
+ * Test-only hook to inject a fake MSAL client.
+ * @internal
+ */
+export function __setAuthClientFactoryForTesting(
+  factory: (() => ConfidentialClientLike) | null
+): void {
+  authClientFactory = factory;
+  instance = null;
 }
 
 /**

@@ -31,7 +31,7 @@ export class CategoryRepository {
       input.name,
       input.type,
       input.description || null,
-      input.color || null,
+      input.color || '#808080',
       input.icon || null,
       now,
       now

@@ -168,11 +168,23 @@ router.get('/', (req: Request, res: Response): void => {
       }
     }
 
+    // Normalize query params: ensure category is a single string and type is a string
+    const categoryParam = req.query.category;
+    let categoryId: string | undefined;
+    if (typeof categoryParam === 'string') {
+      categoryId = categoryParam;
+    } else if (Array.isArray(categoryParam) && categoryParam.length > 0) {
+      categoryId = categoryParam[0];
+    }
+
+    const typeParam = req.query.type;
+    const type = typeof typeParam === 'string' ? (typeParam as 'income' | 'expense') : undefined;
+
     const filter = {
       startDate,
       endDate,
-      categoryId: req.query.category as string | undefined,
-      type: req.query.type as 'income' | 'expense' | undefined,
+      categoryId,
+      type,
       searchTerm: req.query.search as string | undefined,
     };
 

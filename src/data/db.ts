@@ -85,6 +85,7 @@ function runMigrations(database: Database.Database): void {
       import_hash TEXT,
       created_at TEXT NOT NULL,
       deleted_at TEXT,
+      deletedAt TEXT,
       userId TEXT,
       categoryId TEXT,
       createdAt TEXT,
@@ -131,10 +132,8 @@ function seedDefaultCategories(database: Database.Database): void {
   }
 }
 
-/**
- * Run migrations from CLI.
- */
-if (import.meta.url === `file://${process.argv[1]}`) {
+// Run migrations from CLI.
+if (process.argv[1] && /[\\/]db\.(ts|js)$/.test(process.argv[1])) {
   try {
     initializeDatabase();
     console.info('✓ Database migrations completed successfully');

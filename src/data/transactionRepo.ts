@@ -28,9 +28,9 @@ export class TransactionRepository {
 
     const stmt = this.db.prepare(`
       INSERT INTO transactions (
-        id, userId, description, amount, categoryId, type, date, 
-        createdAt, updatedAt, notes, source
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        id, userId, description, amount, category_id, categoryId, type, date,
+        created_at, deleted_at, createdAt, updatedAt, notes, source
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `);
 
     stmt.run(
@@ -39,8 +39,11 @@ export class TransactionRepository {
       input.description,
       input.amount,
       input.categoryId,
+      input.categoryId,
       input.type,
       input.date,
+      now,
+      null,
       now,
       now,
       input.notes || null,
@@ -62,7 +65,12 @@ export class TransactionRepository {
    * Get all transactions for a user with optional filters
    */
   public getByUserId(userId: string, filter?: TransactionFilter): Transaction[] {
-    let query = 'SELECT * FROM transactions WHERE userId = ?';
+    let query = `
+      SELECT t.*, c.name AS categoryName
+      FROM transactions t
+      LEFT JOIN categories c ON c.id = COALESCE(t.categoryId, t.category_id)
+      WHERE t.userId = ?
+    `;
     const params: unknown[] = [userId];
 
     if (filter?.startDate) {
@@ -76,7 +84,7 @@ export class TransactionRepository {
     }
 
     if (filter?.categoryId) {
-      query += ' AND categoryId = ?';
+      query += ' AND COALESCE(t.categoryId, t.category_id) = ?';
       params.push(filter.categoryId);
     }
 
@@ -101,7 +109,7 @@ export class TransactionRepository {
       params.push(searchPattern, searchPattern);
     }
 
-    query += ' ORDER BY date DESC, createdAt DESC';
+    query += ' ORDER BY t.date DESC, COALESCE(t.createdAt, t.created_at) DESC';
 
     const stmt = this.db.prepare(query);
     return stmt.all(...params) as Transaction[];
@@ -179,9 +187,9 @@ export class TransactionRepository {
 
     const now = new Date().toISOString();
     const stmt = this.db.prepare(
-      'UPDATE transactions SET deletedAt = ?, updatedAt = ? WHERE id = ?'
+      'UPDATE transactions SET deletedAt = ?, deleted_at = ?, updatedAt = ? WHERE id = ?'
     );
-    stmt.run(now, now, id);
+    stmt.run(now, now, now, id);
 
     return this.getById(id) as Transaction;
   }
