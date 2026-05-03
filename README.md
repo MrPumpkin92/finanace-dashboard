@@ -1,164 +1,84 @@
 # Personal Finance Dashboard
 
-A production-ready personal finance dashboard application that integrates with Microsoft Power BI for advanced data visualization and reporting.
+Track income and expenses in one place, import bank CSVs, and visualize your spending in Power BI.
 
-## Features
+## What It Does
 
-- **Transaction Management**: Manually log or import transactions from CSV bank exports
-- **Categorization**: Organize transactions into 15+ predefined categories (Salary, Rent, Groceries, Dining, etc.)
-- **CSV Import**: Batch import bank statements with automatic parsing and validation
-- **Power BI Integration**: Interactive dashboards for spending trends, category breakdowns, and budget analysis
-- **RESTful API**: Complete CRUD operations for transactions and categories
-- **SQLite Database**: Lightweight, file-based data persistence
-- **Authentication**: Azure AD / OAuth2 integration for secure access
-- **Type Safety**: Full TypeScript with strict mode enabled
-- **Production Ready**: Includes error handling, security middleware, and comprehensive logging
+This app stores transactions in a local SQLite database, lets you add or import income and expenses, and pushes the data into Power BI for reporting. It is built for personal use, so the setup stays lightweight while still giving you dashboards for totals, category breakdowns, and monthly trends.
+
+## Screenshots
+
+### Transactions Page
+> Placeholder: add a screenshot of the Transactions page here.
+
+Caption: list transactions, filter by month, category, and type, and import a bank CSV.
+
+### Report Page
+> Placeholder: add a screenshot of the Report page here.
+
+Caption: view the embedded Power BI report that summarizes your spending.
 
 ## Prerequisites
 
-- **Node.js**: v18.0.0 or higher
-- **npm**: v9.0.0 or higher
-- **Microsoft Power BI**: Tenant access and report configured
-- **Azure AD**: Application registration for authentication
-- **SQLite**: Included via better-sqlite3
+- Azure subscription
+- Power BI Pro license
+- Node.js 18 or later
+- npm
 
-## Installation
+## Setup
 
-1. Clone the repository:
+1. Clone the repository.
 ```bash
 git clone <repository-url>
-cd finance-dashboard
+cd finanace-dashboard
 ```
 
-2. Install dependencies:
+2. Install dependencies.
 ```bash
 npm install
 ```
 
-3. Configure environment variables:
-```bash
-cp .env.example .env
-```
-
-4. Edit `.env` with your credentials:
+3. Configure your environment.
+Create a `.env` file in the project root and add at least these values:
 ```env
 AZURE_TENANT_ID=your-tenant-id
 AZURE_CLIENT_ID=your-client-id
 AZURE_CLIENT_SECRET=your-client-secret
 POWER_BI_WORKSPACE_ID=your-workspace-id
 POWER_BI_REPORT_ID=your-report-id
+POWER_BI_DATASET_ID=your-dataset-id
 PORT=3000
 DB_PATH=./data/finance.db
 ```
 
-5. Initialize database and seed default categories:
+4. Create the local database and seed the built-in categories.
 ```bash
 npm run db:migrate
-npm run db:seed
 ```
 
-## Development
-
-### Start Development Server
+5. Start the development server.
 ```bash
 npm run dev
 ```
 
-The server will start on `http://localhost:3000`
+> ⚠️ Keep your Azure client secret out of source control. The `.env` file should stay local.
 
-### Build TypeScript
-```bash
-npm run build
-```
+## Import Your First Bank CSV
 
-Output goes to `dist/` directory
+The simplest path is to open the Transactions page, use the import control, and upload a CSV export from your bank. The backend accepts the two CSV shapes described in [CSV import documentation](docs/CSV_IMPORT.md).
 
-### Run Tests
-```bash
-npm test           # Run all tests
-npm run test:ui    # Run with UI dashboard
-npm run test:coverage  # Generate coverage report
-```
+If you are calling the API directly, the current import endpoint is `POST /api/import/csv` and it expects a multipart form upload with a field named `file`.
 
-### Linting & Formatting
-```bash
-npm run lint       # Check for linting errors
-npm run lint:fix   # Fix linting errors
-npm run format     # Format code with Prettier
-npm run format:check  # Check formatting
-```
+After import, check the Transactions page to confirm the rows landed in the right categories.
 
-## Production Build
+> ⚠️ If the file headers do not match a supported format, the importer may skip rows or assign a fallback category.
 
-1. Build the application:
-```bash
-npm run build
-```
+## Categories
 
-2. Set environment to production:
-```bash
-NODE_ENV=production
-```
+The app seeds a built-in category list the first time you run the database migration. The default categories are:
 
-3. Start the server:
-```bash
-npm run start
-```
-
-## API Endpoints
-
-### Transactions
-- `GET /api/transactions` - List user transactions with optional filters
-- `POST /api/transactions` - Create a new transaction
-- `GET /api/transactions/:id` - Get a specific transaction
-- `PUT /api/transactions/:id` - Update a transaction
-- `DELETE /api/transactions/:id` - Delete a transaction
-- `GET /api/transactions/stats/summary` - Get transaction statistics
-
-### Categories
-- `GET /api/categories` - List all categories
-- `POST /api/categories` - Create a new category
-- `GET /api/categories/:id` - Get a specific category
-- `PUT /api/categories/:id` - Update a category
-- `DELETE /api/categories/:id` - Delete a category
-
-### CSV Import
-- `POST /api/import/csv` - Import transactions from CSV file
-- `GET /api/import/template` - Download CSV template
-
-### Power BI Integration
-- `GET /api/embed/config` - Get report embed configuration
-- `POST /api/embed/refresh` - Trigger dataset refresh
-- `GET /api/embed/refresh-history/:datasetId` - Get refresh history
-- `GET /api/embed/pages/:reportId` - Get report pages
-
-### Health Check
-- `GET /api/health` - Server health status
-
-## CSV Import Format
-
-Expected CSV columns:
-- `date` - Transaction date (YYYY-MM-DD, MM/DD/YYYY, or DD-MM-YYYY)
-- `description` - Transaction description
-- `amount` - Transaction amount (positive number)
-- `type` - `income` or `expense`
-- `category` - Category name (must exist in database)
-
-Example:
-```csv
-date,description,amount,type,category
-2024-01-15,Salary Deposit,2500,income,Salary
-2024-01-16,Grocery Store,45.99,expense,Groceries
-2024-01-17,Rent Payment,1200,expense,Rent
-```
-
-## Default Categories
-
-### Income
 - Salary
-- Freelance Income
-
-### Expenses
+- Freelance
 - Groceries
 - Rent
 - Utilities
@@ -170,93 +90,57 @@ date,description,amount,type,category
 - Healthcare
 - Clothing
 - Savings
-
-### Transfer
 - Transfer
 - Other
 
-## Architecture
+You can add custom categories through the category API. The current UI does not ship with a finished category management screen yet, so the API is the reliable path today. See [Categories documentation](docs/CATEGORIES.md) for the built-in list and the rules used by CSV auto-categorization.
 
-```
-src/
-├── auth/                 # Azure AD authentication
-├── api/                  # Power BI REST API client
-├── data/                 # Database layer and repositories
-├── models/               # TypeScript interfaces
-├── import/               # CSV import logic
-└── server/               # Express application
-    ├── routes/           # API route handlers
-    └── app.ts            # Express setup
-```
+## Run Tests
 
-## Database Schema
-
-### Categories Table
-- `id` (PRIMARY KEY)
-- `name` (UNIQUE)
-- `type` (income | expense | transfer)
-- `description`
-- `color`
-- `icon`
-- `isActive`
-- `createdAt`
-- `updatedAt`
-
-### Transactions Table
-- `id` (PRIMARY KEY)
-- `userId`
-- `description`
-- `amount`
-- `categoryId` (FOREIGN KEY)
-- `type` (income | expense)
-- `date`
-- `notes`
-- `source` (manual | csv-import)
-- `createdAt`
-- `updatedAt`
-
-## Security Features
-
-- **Helmet.js**: HTTP security headers
-- **CORS**: Cross-Origin Resource Sharing configuration
-- **Input Validation**: Zod schema validation (extensible)
-- **SQL Injection Prevention**: Parameterized queries via better-sqlite3
-- **Foreign Key Constraints**: Referential integrity
-- **User Isolation**: Per-user transaction filtering
-- **TypeScript Strict Mode**: Type safety
-
-## Performance Optimization
-
-- **Database Indices**: Optimized query performance
-  - `userId`, `categoryId`, `date` indexed
-  - Composite index on `userId + date`
-- **Connection Pooling**: SQLite connection management
-- **Request Logging**: Built-in performance monitoring
-- **Graceful Shutdown**: Clean resource cleanup
-
-## Deployment
-
-### Docker
-1. Build image:
 ```bash
-docker build -t finance-dashboard .
+npm test
 ```
 
-2. Run container:
+Other useful checks:
+
 ```bash
-docker run -p 3000:3000 --env-file .env finance-dashboard
+npm run test:coverage
+npm run typecheck
 ```
-
-### Azure App Service
-1. Create App Service
-2. Configure Azure AD
-3. Deploy to Azure using GitHub Actions or Azure DevOps
-4. Configure database backup strategy
-
-### Environment Variables
-All configuration is managed via `.env` file. See `.env.example` for required variables.
 
 ## Troubleshooting
+
+### Authentication failures
+
+If Power BI calls fail with missing token or auth errors, check these first:
+
+- `AZURE_TENANT_ID`, `AZURE_CLIENT_ID`, and `AZURE_CLIENT_SECRET` are set
+- `POWER_BI_WORKSPACE_ID` and `POWER_BI_REPORT_ID` are set
+- The app registration has Power BI API permissions with admin consent
+- The Power BI workspace allows service principals
+
+### CSV import errors
+
+- Make sure the file is a CSV, not XLSX or PDF
+- Check that the headers match a supported bank export format
+- Confirm dates use one of the supported formats listed in [CSV import documentation](docs/CSV_IMPORT.md)
+- Confirm amounts are numeric and do not contain stray text
+
+### Power BI not loading
+
+- Confirm the workspace and report IDs are correct
+- Confirm the report exists in the workspace
+- Confirm the signed-in Power BI user has access to the report and workspace
+- If the report area is blank, check whether the embed token request is failing in the server logs
+
+> ⚠️ The app can only show the Power BI report if the Azure app registration and Power BI workspace permissions are set up correctly.
+
+## More Documentation
+
+- [API reference](docs/API.md)
+- [Category reference](docs/CATEGORIES.md)
+- [CSV import guide](docs/CSV_IMPORT.md)
+- [Azure setup guide](docs/AZURE_SETUP.md)
 
 ### Database Lock Issues
 SQLite can experience lock contention. For high-concurrency scenarios, consider migrating to PostgreSQL.
