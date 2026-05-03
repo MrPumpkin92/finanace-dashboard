@@ -3,7 +3,7 @@
  * Handles token acquisition, caching, and auto-refresh for Power BI API access
  */
 
-import { ConfidentialClientApplication, TokenCache } from '@azure/msal-node';
+import { ConfidentialClientApplication } from '@azure/msal-node';
 import { Logger } from '../utils/logger.js';
 import { AuthError } from '../utils/errors.js';
 
@@ -18,11 +18,6 @@ interface CachedToken {
 /**
  * Token acquisition response from MSAL
  */
-interface TokenResponse {
-  accessToken: string;
-  expiresOn?: Date;
-}
-
 /**
  * Azure AD Authentication Client
  * Manages token acquisition and caching with automatic refresh

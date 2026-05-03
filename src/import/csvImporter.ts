@@ -385,7 +385,7 @@ export class CSVImporter {
    */
   private parseCSVRow(
     row: CsvRow,
-    userId: string,
+    _userId: string,
     options?: {
       dateFormat?: string;
       amountMultiplier?: number;

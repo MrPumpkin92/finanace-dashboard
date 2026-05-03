@@ -2,7 +2,7 @@
  * Authentication Module
  * Handles Azure AD / OAuth2 authentication for Power BI and API access
  */
-import { PublicClientApplication, CryptoProvider } from '@azure/msal-node';
+import { PublicClientApplication } from '@azure/msal-node';
 import { AccessToken, ClientSecretCredential } from '@azure/identity';
 
 const config = {
@@ -13,7 +13,7 @@ const config = {
   },
   system: {
     loggerOptions: {
-      loggerCallback: (level: unknown, message: string): void => {
+      loggerCallback: (_level: unknown, message: string): void => {
         console.log(`[MSAL] ${message}`);
       },
     },

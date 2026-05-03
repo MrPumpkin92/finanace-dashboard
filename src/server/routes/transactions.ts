@@ -13,6 +13,7 @@ import { CreateTransactionInput, UpdateTransactionInput } from '../../models/Tra
 import { Validators } from '../../utils/validators.js';
 import { Logger } from '../../utils/logger.js';
 import { importCSV } from '../../import/csvImporter.js';
+import { syncManager } from '../../sync/syncManager.js';
 
 const router = Router();
 const transactionRepo = new TransactionRepository();
@@ -25,7 +26,7 @@ if (!fs.existsSync(uploadDir)) {
 
 const upload = multer({
   dest: uploadDir,
-  fileFilter: (req, file, cb) => {
+  fileFilter: (_req, file, cb) => {
     const ext = path.extname(file.originalname).toLowerCase();
     if (ext === '.csv') {
       cb(null, true);
@@ -126,6 +127,7 @@ router.post('/', async (req: Request, res: Response): Promise<void> => {
     const transaction = transactionRepo.create(userId, input);
     res.status(201).json(transaction);
     Logger.info('Transaction created', { userId, transactionId: transaction.id });
+    syncManager.enqueueTransactionSync();
   } catch (error) {
     Logger.error('Error creating transaction', {
       errorType: error instanceof Error ? error.name : typeof error,
@@ -430,6 +432,7 @@ router.put('/:id', (req: Request, res: Response): void => {
     const updated = transactionRepo.update(req.params.id, input);
     res.json(updated);
     Logger.info('Transaction updated', { userId, transactionId: req.params.id });
+    syncManager.enqueueTransactionSync();
   } catch (error) {
     Logger.error('Error updating transaction', {
       errorType: error instanceof Error ? error.name : typeof error,
@@ -480,6 +483,7 @@ router.delete('/:id', (req: Request, res: Response): void => {
     const deleted = transactionRepo.softDelete(req.params.id);
     res.json(deleted);
     Logger.info('Transaction soft deleted', { userId, transactionId: req.params.id });
+    syncManager.enqueueTransactionSync();
   } catch (error) {
     Logger.error('Error deleting transaction', {
       errorType: error instanceof Error ? error.name : typeof error,

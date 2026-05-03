@@ -39,7 +39,7 @@ export function initializeDatabase(): Database.Database {
 /**
  * Exported singleton database instance.
  */
-export const db = initializeDatabase();
+export const db: Database.Database = initializeDatabase();
 
 /**
  * Get database connection.

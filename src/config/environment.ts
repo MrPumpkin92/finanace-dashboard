@@ -10,11 +10,15 @@ export interface EnvironmentConfig {
   powerBI: {
     workspaceId: string;
     reportId: string;
+    datasetId?: string;
+    pushDatasetId?: string;
+    refreshDatasetId?: string;
   };
   server: {
     port: number;
     nodeEnv: 'development' | 'production' | 'test';
     corsOrigin: string;
+    refreshCron: string;
   };
   database: {
     path: string;
@@ -54,11 +58,15 @@ export function loadEnvironmentConfig(): EnvironmentConfig {
     powerBI: {
       workspaceId: process.env.POWER_BI_WORKSPACE_ID || '',
       reportId: process.env.POWER_BI_REPORT_ID || '',
+      datasetId: process.env.POWER_BI_DATASET_ID || undefined,
+      pushDatasetId: process.env.POWER_BI_PUSH_DATASET_ID || process.env.POWER_BI_DATASET_ID || undefined,
+      refreshDatasetId: process.env.POWER_BI_REFRESH_DATASET_ID || process.env.POWER_BI_DATASET_ID || undefined,
     },
     server: {
       port: parseInt(process.env.PORT || '3000', 10),
       nodeEnv: (process.env.NODE_ENV as 'development' | 'production' | 'test') || 'development',
       corsOrigin: process.env.CORS_ORIGIN || 'http://localhost:3000',
+      refreshCron: process.env.REFRESH_CRON || '0 0 * * *',
     },
     database: {
       path: process.env.DB_PATH || './data/finance.db',

@@ -217,6 +217,40 @@ export class PowerBIClient {
   }
 
   /**
+   * Get report pages for a report.
+   * @param {string} workspaceId The workspace ID
+   * @param {string} reportId The report ID
+   * @returns {Promise<Array<Record<string, unknown>>>} List of report pages
+   */
+  public async getReportPages(
+    workspaceId: string,
+    reportId: string
+  ): Promise<Array<Record<string, unknown>>> {
+    try {
+      const client = await this.initializeClient();
+      const response = await client.get<{ value: Array<Record<string, unknown>> }>(
+        `/groups/${workspaceId}/reports/${reportId}/pages`
+      );
+
+      Logger.info('Retrieved Power BI report pages', {
+        workspaceId,
+        reportId,
+        count: response.data.value.length,
+      });
+
+      return response.data.value;
+    } catch (error) {
+      Logger.error('Failed to fetch report pages', {
+        workspaceId,
+        reportId,
+        errorType: error instanceof Error ? error.name : typeof error,
+        errorMessage: error instanceof Error ? error.message : String(error),
+      });
+      throw new ApiError('Failed to fetch report pages', 500);
+    }
+  }
+
+  /**
    * Generate an embed token for a report
    * @param {string} workspaceId The workspace ID
    * @param {string} reportId The report ID

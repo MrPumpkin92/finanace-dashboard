@@ -7,6 +7,7 @@ import multer from 'multer';
 import path from 'path';
 import fs from 'fs';
 import { CSVImporter } from '../../import/csvImporter.js';
+import { syncManager } from '../../sync/syncManager.js';
 
 const router = Router();
 
@@ -18,7 +19,7 @@ if (!fs.existsSync(uploadDir)) {
 
 const upload = multer({
   dest: uploadDir,
-  fileFilter: (req, file, cb) => {
+  fileFilter: (_req, file, cb) => {
     const ext = path.extname(file.originalname).toLowerCase();
     if (ext === '.csv') {
       cb(null, true);
@@ -55,6 +56,8 @@ router.post('/csv', upload.single('file'), async (req: Request, res: Response): 
       amountMultiplier: req.body.amountMultiplier ? parseFloat(req.body.amountMultiplier) : 1,
     });
 
+    syncManager.enqueueTransactionSync();
+
     // Clean up uploaded file
     fs.unlinkSync(file.path);
 
@@ -80,7 +83,7 @@ router.post('/csv', upload.single('file'), async (req: Request, res: Response): 
  * GET /api/import/template
  * Get CSV template for import
  */
-router.get('/template', (req: Request, res: Response): void => {
+router.get('/template', (_req: Request, res: Response): void => {
   const template = `date,description,amount,type,category
 2024-01-15,Salary,-2500,income,Salary
 2024-01-16,Grocery Store,45.99,expense,Groceries
