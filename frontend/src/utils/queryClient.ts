@@ -1,4 +1,5 @@
 import { QueryClient, QueryClientProvider } from 'react-query';
+import { createElement, type ComponentType } from 'react';
 
 export const queryClient = new QueryClient({
   defaultOptions: {
@@ -10,12 +11,12 @@ export const queryClient = new QueryClient({
   },
 });
 
-export function withQueryClient(Component: React.ComponentType) {
+export function withQueryClient(Component: ComponentType) {
   return function WithQueryClientComponent() {
-    return (
-      <QueryClientProvider client={queryClient}>
-        <Component />
-      </QueryClientProvider>
+    return createElement(
+      QueryClientProvider,
+      { client: queryClient },
+      createElement(Component)
     );
   };
 }

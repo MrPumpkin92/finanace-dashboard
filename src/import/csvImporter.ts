@@ -391,19 +391,22 @@ export class CSVImporter {
       amountMultiplier?: number;
     }
   ): CreateTransactionInput | null {
-    const date = this.getField(row, ['date', 'transaction_date', 'post_date']);
-    const description = this.getField(row, ['description', 'memo', 'payee', 'details']);
+    const date = this.getField(row, ['date', 'transaction_date', 'transaction date', 'post_date']);
+    const description = this.getField(row, ['description', 'memo', 'payee', 'details', 'merchant']);
     const amountStr = this.getField(row, ['amount', 'value', 'transaction_amount']);
+    const debitStr = this.getField(row, ['debit']);
+    const creditStr = this.getField(row, ['credit']);
     const type = this.getField(row, ['type', 'transaction_type']) as 'income' | 'expense' | null;
     const categoryName = this.getField(row, ['category', 'category_name']);
 
-    if (!date || !description || !amountStr) {
+    if (!date || !description || (!amountStr && !debitStr && !creditStr)) {
       throw new Error('Missing required fields: date, description, or amount');
     }
 
-    let amount = parseFloat(amountStr);
+    const resolvedAmount = amountStr || creditStr || debitStr || '';
+    let amount = parseFloat(this.normalizeAmountString(resolvedAmount));
     if (Number.isNaN(amount)) {
-      throw new Error(`Invalid amount: ${amountStr}`);
+      throw new Error(`Invalid amount: ${resolvedAmount}`);
     }
 
     if (options?.amountMultiplier) {
@@ -413,9 +416,13 @@ export class CSVImporter {
     amount = Math.abs(amount);
 
     let transactionType = type || 'expense';
-    if (amountStr.startsWith('-')) {
+    if (creditStr) {
+      transactionType = 'income';
+    } else if (debitStr) {
       transactionType = 'expense';
-    } else if (amountStr.startsWith('+')) {
+    } else if ((amountStr || '').startsWith('-')) {
+      transactionType = 'expense';
+    } else if ((amountStr || '').startsWith('+')) {
       transactionType = 'income';
     }
 
@@ -449,6 +456,14 @@ export class CSVImporter {
     };
   }
 
+  private normalizeAmountString(value: string): string {
+    return value
+      .trim()
+      .replace(/\((.*)\)/, '-$1')
+      .replace(/[^0-9.-]/g, '')
+      .replace(/(\..*)\./g, '$1');
+  }
+
   private getField(row: CsvRow, fieldNames: string[]): string | null {
     const lowerRow = Object.fromEntries(
       Object.entries(row).map(([key, value]) => [key.toLowerCase(), value])
@@ -465,25 +480,33 @@ export class CSVImporter {
   }
 
   private parseDate(dateStr: string): string | null {
-    const formats = [
-      /^\d{4}-\d{2}-\d{2}/,
-      /^\d{2}\/\d{2}\/\d{4}/,
-      /^\d{2}-\d{2}-\d{4}/,
-    ];
+    const trimmed = dateStr.trim();
+    let isoDate: string | null = null;
 
-    let date: Date | null = null;
-
-    for (const format of formats) {
-      if (format.test(dateStr)) {
-        date = new Date(dateStr);
-        break;
-      }
+    const isoMatch = trimmed.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+    if (isoMatch) {
+      isoDate = `${isoMatch[1]}-${isoMatch[2]}-${isoMatch[3]}`;
     }
 
-    if (!date || Number.isNaN(date.getTime())) {
+    const dayFirstMatch = trimmed.match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
+    if (!isoDate && dayFirstMatch) {
+      isoDate = `${dayFirstMatch[3]}-${dayFirstMatch[2]}-${dayFirstMatch[1]}`;
+    }
+
+    const monthFirstMatch = trimmed.match(/^(\d{2})-(\d{2})-(\d{4})$/);
+    if (!isoDate && monthFirstMatch) {
+      isoDate = `${monthFirstMatch[3]}-${monthFirstMatch[1]}-${monthFirstMatch[2]}`;
+    }
+
+    if (!isoDate) {
       return null;
     }
 
-    return date.toISOString().split('T')[0];
+    const parsed = new Date(`${isoDate}T00:00:00Z`);
+    if (Number.isNaN(parsed.getTime())) {
+      return null;
+    }
+
+    return isoDate;
   }
 }

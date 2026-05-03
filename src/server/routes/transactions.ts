@@ -174,7 +174,10 @@ router.get('/', (req: Request, res: Response): void => {
     if (typeof categoryParam === 'string') {
       categoryId = categoryParam;
     } else if (Array.isArray(categoryParam) && categoryParam.length > 0) {
-      categoryId = categoryParam[0];
+      const firstCategory = categoryParam[0];
+      if (typeof firstCategory === 'string') {
+        categoryId = firstCategory;
+      }
     }
 
     const typeParam = req.query.type;

@@ -25,11 +25,20 @@ export const transactionsApi = {
     params.append('page', page.toString());
     params.append('limit', limit.toString());
     if (month) params.append('month', month);
-    if (categoryId) params.append('categoryId', categoryId);
+    if (categoryId) params.append('category', categoryId);
     if (type) params.append('type', type);
 
     const response = await apiClient.get(`/transactions?${params.toString()}`);
-    return response.data;
+    const payload = response.data?.data || response.data;
+    const rows = Array.isArray(payload) ? payload : payload?.data || [];
+
+    return {
+      data: rows,
+      total: rows.length,
+      page,
+      limit,
+      hasMore: rows.length === limit,
+    };
   },
 
   create: async (data: CreateTransactionInput): Promise<Transaction> => {
@@ -54,7 +63,9 @@ export const transactionsApi = {
   },
 
   getMonthlySummary: async (month: string): Promise<MonthSummary> => {
-    const response = await apiClient.get(`/transactions/summary/${month}`);
+    const response = await apiClient.get('/transactions/summary', {
+      params: { month },
+    });
     return response.data.data || response.data;
   },
 
@@ -103,7 +114,7 @@ export const embedApi = {
     groupId: string;
     datasetId: string;
   }> => {
-    const response = await apiClient.get('/embed-token');
+    const response = await apiClient.get('/embed/config');
     return response.data.data || response.data;
   },
 };
@@ -115,10 +126,15 @@ export const importApi = {
   uploadCsv: async (file: File): Promise<{ imported: number; failed: number }> => {
     const formData = new FormData();
     formData.append('file', file);
-    const response = await apiClient.post('/import', formData, {
+    const response = await apiClient.post('/import/csv', formData, {
       headers: { 'Content-Type': 'multipart/form-data' },
     });
-    return response.data.data || response.data;
+    const payload = response.data?.data || response.data;
+
+    return {
+      imported: payload.imported ?? payload.importedCount ?? 0,
+      failed: payload.failed ?? payload.failedCount ?? 0,
+    };
   },
 };
 
