@@ -1,71 +1,68 @@
-import React, { useState, useEffect, useRef } from 'react';
-import { PowerBiEmbedded, models } from 'powerbi-client';
+import { useState, useEffect, useRef } from 'react';
+import { models, service, factories, Report } from 'powerbi-client';
 import { useEmbedToken } from '../hooks/useApi';
+
+// A single Power BI service instance drives all embeds on the page.
+const powerbi = new service.Service(
+  factories.hpmFactory,
+  factories.wpmpFactory,
+  factories.routerFactory
+);
 
 export const ReportPage: React.FC = () => {
   const containerRef = useRef<HTMLDivElement>(null);
-  const embedRef = useRef<PowerBiEmbedded | null>(null);
+  const embedRef = useRef<Report | null>(null);
   const { data: embedToken, isLoading, error } = useEmbedToken();
   const [embedError, setEmbedError] = useState<string | null>(null);
 
   useEffect(() => {
-    if (!embedToken || !containerRef.current) return;
+    const container = containerRef.current;
+    if (!embedToken || !container) return;
 
-    const initiateEmbedding = async () => {
-      try {
-        setEmbedError(null);
+    try {
+      setEmbedError(null);
 
-        // Initialize Power BI Embedded component
-        const embed = new PowerBiEmbedded(containerRef.current!);
-
-        // Configure and embed report
-        await embed.embed(
-          {
-            type: 'report',
-            id: embedToken.reportId,
-            embedUrl: `https://app.powerbi.com/reportEmbed?reportId=${embedToken.reportId}&groupId=${embedToken.groupId}`,
-            accessToken: embedToken.token,
-            tokenExpiry: new Date(Date.now() + 60 * 60 * 1000).toISOString(), // 1 hour
-            permissions: models.Permissions.Read,
-            viewMode: models.ViewMode.View,
-            settings: {
-              panes: {
-                filters: {
-                  visible: true,
-                },
-                pageNavigation: {
-                  visible: true,
-                },
-              },
-              bars: {
-                statusBar: {
-                  visible: true,
-                },
-              },
-            },
+      const config: models.IReportEmbedConfiguration = {
+        type: 'report',
+        id: embedToken.reportId,
+        embedUrl: `https://app.powerbi.com/reportEmbed?reportId=${embedToken.reportId}&groupId=${embedToken.groupId}`,
+        accessToken: embedToken.token,
+        tokenType: models.TokenType.Embed,
+        permissions: models.Permissions.Read,
+        viewMode: models.ViewMode.View,
+        settings: {
+          panes: {
+            filters: { visible: true },
+            pageNavigation: { visible: true },
           },
-          {}
-        );
+          bars: {
+            statusBar: { visible: true },
+          },
+        },
+      };
 
-        embedRef.current = embed;
-      } catch (err: any) {
-        setEmbedError(err?.message || 'Failed to embed Power BI report');
-      }
-    };
-
-    initiateEmbedding();
+      const report = powerbi.embed(container, config) as Report;
+      report.on('error', (event) => {
+        const detail = event.detail as { message?: string } | undefined;
+        setEmbedError(detail?.message || 'Failed to embed Power BI report');
+      });
+      embedRef.current = report;
+    } catch (err) {
+      setEmbedError(err instanceof Error ? err.message : 'Failed to embed Power BI report');
+    }
 
     return () => {
       // Cleanup
-      if (embedRef.current) {
-        embedRef.current.reset();
+      if (container) {
+        powerbi.reset(container);
       }
+      embedRef.current = null;
     };
   }, [embedToken]);
 
   const handleRefresh = () => {
     if (embedRef.current) {
-      embedRef.current.refresh();
+      void embedRef.current.refresh();
     }
   };
 
@@ -83,6 +80,9 @@ export const ReportPage: React.FC = () => {
   };
 
   if (error) {
+    // The most common reason this fails locally is that the optional Power BI
+    // integration isn't configured. Treat it as an informational state rather
+    // than a hard error — the built-in Dashboard already covers analytics.
     return (
       <div className="space-y-6">
         <div>
@@ -90,9 +90,20 @@ export const ReportPage: React.FC = () => {
           <p className="text-gray-400">Power BI Financial Analytics</p>
         </div>
 
-        <div className="card bg-red-900/20 border-red-700 p-8 text-center">
-          <p className="text-red-400 mb-4">❌ Failed to load report</p>
-          <p className="text-gray-400 mb-4">{error.message}</p>
+        <div className="card bg-blue-900/20 border-blue-700 p-8">
+          <p className="text-blue-300 text-lg font-medium mb-2">
+            ⚙️ Power BI integration not configured
+          </p>
+          <p className="text-gray-400 mb-4">
+            This page embeds a live Power BI report once Azure credentials are set. The app runs
+            fully without it — head to the <strong>Dashboard</strong> for built-in charts powered by
+            the same data.
+          </p>
+          <ul className="text-sm text-gray-400 list-disc list-inside space-y-1 mb-4">
+            <li>Set the Azure / Power BI variables in <code className="text-blue-300">.env</code></li>
+            <li>Restart the backend, then return to this page</li>
+            <li>See <code className="text-blue-300">docs/AZURE_SETUP.md</code> for the full walkthrough</li>
+          </ul>
           <button onClick={() => window.location.reload()} className="btn-primary">
             Retry
           </button>

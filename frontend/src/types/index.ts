@@ -77,3 +77,26 @@ export interface ImportResult {
   failed: number;
   errors?: string[];
 }
+
+export interface DashboardAnalytics {
+  kpis: {
+    totalIncome: number;
+    totalExpenses: number;
+    netSavings: number;
+    savingsRate: number;
+    transactionCount: number;
+  };
+  monthlyTrend: Array<{
+    month: string;
+    income: number;
+    expenses: number;
+    net: number;
+  }>;
+  categoryBreakdown: Array<{
+    categoryName: string;
+    total: number;
+    count: number;
+    color: string;
+  }>;
+  recentTransactions: Transaction[];
+}

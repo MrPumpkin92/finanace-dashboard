@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useQueryClient } from 'react-query';
-import { formatMonth, getCurrentMonth } from '../utils/formatting';
+import { getCurrentMonth } from '../utils/formatting';
 import { useTransactions, useMonthlySummary, useCreateTransaction, useDeleteTransaction, useImportCsv } from '../hooks/useApi';
 import { useCategoryMap } from '../hooks/useCategories';
 import { CreateTransactionFormData } from '../utils/validation';

@@ -57,12 +57,14 @@ function parseMonthRange(monthStr?: string): { startDate: string; endDate: strin
     return null;
   }
 
-  const [year, month] = monthStr.split('-');
-  const startDate = `${year}-${month}-01`;
-  const date = new Date(startDate);
-  date.setMonth(date.getMonth() + 1);
-  date.setDate(0); // Last day of month
-  const endDate = date.toISOString().split('T')[0];
+  const [year, month] = monthStr.split('-').map(Number);
+  // Use UTC arithmetic to avoid timezone drift: Date.UTC(year, month, 0) is the
+  // last day of `month` (month is 1-based here, so index `month` = next month,
+  // day 0 = last day of the requested month).
+  const lastDay = new Date(Date.UTC(year, month, 0)).getUTCDate();
+  const mm = String(month).padStart(2, '0');
+  const startDate = `${year}-${mm}-01`;
+  const endDate = `${year}-${mm}-${String(lastDay).padStart(2, '0')}`;
 
   return { startDate, endDate };
 }
@@ -365,6 +367,109 @@ router.get('/summary', (req: Request, res: Response): void => {
     });
     res.status(500).json({
       error: 'Failed to fetch transaction summary',
+      code: 'INTERNAL_ERROR',
+    });
+  }
+});
+
+/**
+ * GET /api/transactions/analytics
+ * Dashboard analytics across all transactions (optionally limited to recent
+ * months). Returns headline KPIs, a month-by-month trend, an expense breakdown
+ * by category, and the most recent transactions.
+ *
+ * Query params: ?months=12 (number of trailing months to include in the trend)
+ */
+router.get('/analytics', (req: Request, res: Response): void => {
+  try {
+    const userId = getUserId(req);
+
+    let transactions = transactionRepo.getByUserId(userId, {});
+    transactions = transactions.filter((t) => !t.deletedAt);
+
+    // Map category id -> color for nicer charts
+    const categoryColors = new Map<string, string>();
+    for (const category of categoryRepo.getAll()) {
+      categoryColors.set(category.name, category.color);
+    }
+
+    let totalIncome = 0;
+    let totalExpenses = 0;
+    const monthlyMap = new Map<string, { income: number; expenses: number }>();
+    const categoryMap = new Map<string, { total: number; count: number }>();
+
+    for (const tx of transactions) {
+      if (tx.type === 'income') {
+        totalIncome += tx.amount;
+      } else {
+        totalExpenses += tx.amount;
+      }
+
+      const monthKey = tx.date.slice(0, 7); // YYYY-MM
+      const month = monthlyMap.get(monthKey) || { income: 0, expenses: 0 };
+      if (tx.type === 'income') {
+        month.income += tx.amount;
+      } else {
+        month.expenses += tx.amount;
+      }
+      monthlyMap.set(monthKey, month);
+
+      if (tx.type === 'expense') {
+        const categoryName = tx.categoryName || 'Uncategorized';
+        const existing = categoryMap.get(categoryName) || { total: 0, count: 0 };
+        categoryMap.set(categoryName, {
+          total: existing.total + tx.amount,
+          count: existing.count + 1,
+        });
+      }
+    }
+
+    const monthsLimit = parseInt((req.query.months as string) || '12', 10);
+    const monthlyTrend = Array.from(monthlyMap.entries())
+      .map(([month, data]) => ({
+        month,
+        income: Math.round(data.income * 100) / 100,
+        expenses: Math.round(data.expenses * 100) / 100,
+        net: Math.round((data.income - data.expenses) * 100) / 100,
+      }))
+      .sort((a, b) => a.month.localeCompare(b.month))
+      .slice(-monthsLimit);
+
+    const categoryBreakdown = Array.from(categoryMap.entries())
+      .map(([categoryName, data]) => ({
+        categoryName,
+        total: Math.round(data.total * 100) / 100,
+        count: data.count,
+        color: categoryColors.get(categoryName) || '#6b7280',
+      }))
+      .sort((a, b) => b.total - a.total);
+
+    const recentTransactions = [...transactions]
+      .sort((a, b) => b.date.localeCompare(a.date))
+      .slice(0, 8);
+
+    const netSavings = totalIncome - totalExpenses;
+    const savingsRate = totalIncome > 0 ? (netSavings / totalIncome) * 100 : 0;
+
+    res.json({
+      kpis: {
+        totalIncome: Math.round(totalIncome * 100) / 100,
+        totalExpenses: Math.round(totalExpenses * 100) / 100,
+        netSavings: Math.round(netSavings * 100) / 100,
+        savingsRate: Math.round(savingsRate * 10) / 10,
+        transactionCount: transactions.length,
+      },
+      monthlyTrend,
+      categoryBreakdown,
+      recentTransactions,
+    });
+  } catch (error) {
+    Logger.error('Error fetching analytics', {
+      errorType: error instanceof Error ? error.name : typeof error,
+      errorMessage: error instanceof Error ? error.message : String(error),
+    });
+    res.status(500).json({
+      error: 'Failed to fetch analytics',
       code: 'INTERNAL_ERROR',
     });
   }

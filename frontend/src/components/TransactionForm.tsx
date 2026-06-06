@@ -2,7 +2,6 @@ import React from 'react';
 import { useForm, Controller } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { createTransactionSchema, CreateTransactionFormData } from '../utils/validation';
-import { useCategories } from '../hooks/useApi';
 import { useExpenseCategories, useIncomeCategories } from '../hooks/useCategories';
 import { format } from 'date-fns';
 
@@ -17,7 +16,6 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({
   isLoading = false,
   defaultValues,
 }) => {
-  const { data: allCategories = [] } = useCategories();
   const expenseCategories = useExpenseCategories();
   const incomeCategories = useIncomeCategories();
 

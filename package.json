@@ -20,6 +20,7 @@
     "format:check": "prettier --check \"src/**/*.ts\"",
     "db:migrate": "node --loader ts-node/esm src/data/db.ts",
     "db:seed": "node --loader ts-node/esm src/data/seed.ts",
+    "db:seed:demo": "node --loader ts-node/esm src/data/seedDemo.ts",
     "typecheck": "tsc --noEmit"
   },
   "keywords": [

@@ -5,6 +5,7 @@ import cron from 'node-cron';
 import { EventEmitter } from 'node:events';
 
 import { Logger } from '../utils/logger.js';
+import { isPowerBIConfigured } from '../auth/auth.js';
 import { exportAndRefresh } from './exportAndRefresh.js';
 import { syncPushDataset } from './pushDataset.js';
 import { SyncQueue } from './syncQueue.js';
@@ -57,6 +58,12 @@ class SyncManager extends EventEmitter {
   }
 
   public enqueueTransactionSync(): void {
+    // In local-only mode (no Azure credentials) there is nothing to push to,
+    // so skip queuing rather than logging a failed sync on every write.
+    if (!isPowerBIConfigured()) {
+      return;
+    }
+
     this.status = {
       lastSyncAt: this.status.lastSyncAt,
       status: 'pending',

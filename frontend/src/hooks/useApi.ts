@@ -1,6 +1,6 @@
 import { useQuery, useMutation, UseQueryResult } from 'react-query';
 import { transactionsApi, categoriesApi, embedApi, importApi } from '../utils/api';
-import { Transaction, Category, PaginatedResponse, CreateTransactionInput, MonthSummary, ImportResult } from '../types/index';
+import { Transaction, PaginatedResponse, CreateTransactionInput } from '../types/index';
 
 /**
  * Transactions Hooks
@@ -30,6 +30,10 @@ export const useMonthlySummary = (month: string) => {
     ['monthly-summary', month],
     () => transactionsApi.getMonthlySummary(month)
   );
+};
+
+export const useAnalytics = (months = 12) => {
+  return useQuery(['analytics', months], () => transactionsApi.getAnalytics(months));
 };
 
 export const useCreateTransaction = () => {

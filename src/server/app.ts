@@ -9,7 +9,7 @@ import 'dotenv/config';
 
 import { initializeDatabase, closeDatabase } from '../data/db.js';
 import { seedDatabase } from '../data/seed.js';
-import { validateAuthConfig } from '../auth/auth.js';
+import { isPowerBIConfigured, getMissingPowerBIConfig } from '../auth/auth.js';
 import { Logger } from '../utils/logger.js';
 import { syncManager } from '../sync/syncManager.js';
 
@@ -133,8 +133,15 @@ export function createApp(): Express {
  */
 export async function startServer(): Promise<void> {
   try {
-    // Validate environment configuration
-    validateAuthConfig();
+    // Power BI is optional. The core dashboard runs fully without it; when the
+    // Azure credentials are missing we simply disable the embed + sync features
+    // instead of crashing on startup.
+    const powerBIReady = isPowerBIConfigured();
+    if (!powerBIReady) {
+      Logger.warn('Power BI integration disabled — running in local-only mode', {
+        missing: getMissingPowerBIConfig(),
+      });
+    }
 
     // Initialize database
     initializeDatabase();
@@ -142,14 +149,16 @@ export async function startServer(): Promise<void> {
     // Seed default categories
     await seedDatabase();
 
-    // Start sync scheduler
-    syncManager.startScheduler();
+    // Start sync scheduler only when Power BI is configured
+    if (powerBIReady) {
+      syncManager.startScheduler();
+    }
 
     // Create Express app
     const app = createApp();
 
     // Start server
-    const port = parseInt(process.env.PORT || '3000', 10);
+    const port = parseInt(process.env.PORT || '5000', 10);
     app.listen(port, () => {
       Logger.info('Server started', {
         url: `http://localhost:${port}`,

@@ -6,7 +6,7 @@ import { Router, Request, Response } from 'express';
 import multer from 'multer';
 import path from 'path';
 import fs from 'fs';
-import { CSVImporter } from '../../import/csvImporter.js';
+import { importCSV } from '../../import/csvImporter.js';
 import { syncManager } from '../../sync/syncManager.js';
 
 const router = Router();
@@ -43,28 +43,30 @@ router.post('/csv', upload.single('file'), async (req: Request, res: Response): 
     return;
   }
 
-  const userId = req.user?.id || 'default-user';
-
   try {
-    // Read file content
-    const fileContent = fs.readFileSync(file.path, 'utf-8');
-
-    // Import transactions
-    const importer = new CSVImporter();
-    const result = await importer.importCSV(fileContent, userId, {
-      dateFormat: req.body.dateFormat || 'YYYY-MM-DD',
-      amountMultiplier: req.body.amountMultiplier ? parseFloat(req.body.amountMultiplier) : 1,
-    });
+    // Import transactions using the keyword-categorizing importer.
+    // Handles bank Debit/Credit and single Amount column layouts, normalizes
+    // dates, auto-categorizes by merchant, and de-duplicates via import_hash.
+    const result = importCSV(file.path, {});
 
     syncManager.enqueueTransactionSync();
 
     // Clean up uploaded file
     fs.unlinkSync(file.path);
 
-    if (result.success) {
-      res.status(201).json(result);
+    const failed = result.errors.length;
+    const payload = {
+      success: failed === 0,
+      imported: result.imported,
+      skipped: result.skipped,
+      failed,
+      errors: result.errors,
+    };
+
+    if (failed === 0) {
+      res.status(201).json(payload);
     } else {
-      res.status(207).json(result); // 207 Multi-Status: Some succeeded, some failed
+      res.status(207).json(payload); // 207 Multi-Status: some rows failed
     }
   } catch (error) {
     // Clean up uploaded file on error
@@ -84,10 +86,10 @@ router.post('/csv', upload.single('file'), async (req: Request, res: Response): 
  * Get CSV template for import
  */
 router.get('/template', (_req: Request, res: Response): void => {
-  const template = `date,description,amount,type,category
-2024-01-15,Salary,-2500,income,Salary
-2024-01-16,Grocery Store,45.99,expense,Groceries
-2024-01-17,Rent Payment,1200,expense,Rent`;
+  const template = `Date,Description,Debit,Credit
+2026-01-15,ACME CORP PAYROLL,,2500.00
+2026-01-16,Grocery Store,45.99,
+2026-01-17,Rent Payment,1200.00,`;
 
   res.setHeader('Content-Type', 'text/csv');
   res.setHeader('Content-Disposition', 'attachment; filename="transaction_template.csv"');

@@ -1,7 +1,9 @@
 import axios from 'axios';
-import { Transaction, Category, PaginatedResponse, CreateTransactionInput, MonthSummary } from '../types/index';
+import { Transaction, Category, PaginatedResponse, CreateTransactionInput, MonthSummary, DashboardAnalytics } from '../types/index';
 
-const API_BASE = 'http://localhost:5000/api';
+// Relative base: the Vite dev server proxies "/api" to the backend (see
+// vite.config.ts). Override with VITE_API_BASE for a non-proxied deployment.
+const API_BASE = import.meta.env.VITE_API_BASE || '/api';
 
 const apiClient = axios.create({
   baseURL: API_BASE,
@@ -65,6 +67,13 @@ export const transactionsApi = {
   getMonthlySummary: async (month: string): Promise<MonthSummary> => {
     const response = await apiClient.get('/transactions/summary', {
       params: { month },
+    });
+    return response.data.data || response.data;
+  },
+
+  getAnalytics: async (months = 12): Promise<DashboardAnalytics> => {
+    const response = await apiClient.get('/transactions/analytics', {
+      params: { months },
     });
     return response.data.data || response.data;
   },

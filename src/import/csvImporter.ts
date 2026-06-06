@@ -57,12 +57,19 @@ type NormalizedTransaction = {
 };
 
 const CATEGORY_KEYWORDS = [
-  { pattern: /woolworths|checkers|pick n pay|spar/i, category: 'Groceries' },
-  { pattern: /rent|lease/i, category: 'Rent' },
-  { pattern: /uber|lyft|petrol|fuel|bp|shell/i, category: 'Transport' },
-  { pattern: /netflix|spotify|amazon prime|dstv/i, category: 'Subscriptions' },
-  { pattern: /betway|sportpesa|hollywoodbets|casino/i, category: 'Betting' },
-  { pattern: /salary|payroll|wages/i, category: 'Salary' },
+  { pattern: /payroll|salary|wages|paycheck|direct deposit/i, category: 'Salary' },
+  { pattern: /freelance|invoice|contract|consult/i, category: 'Freelance' },
+  { pattern: /woolworths|checkers|pick n pay|spar|grocer|loblaws|sobeys|metro|walmart|costco|no frills|food basics/i, category: 'Groceries' },
+  { pattern: /rent|lease|landlord|mortgage/i, category: 'Rent' },
+  { pattern: /uber|lyft|petrol|fuel|bp|shell|esso|petro|gas station|transit|presto|parking/i, category: 'Transport' },
+  { pattern: /netflix|spotify|amazon prime|dstv|disney|apple\.com\/bill|youtube premium|subscription/i, category: 'Subscriptions' },
+  { pattern: /restaurant|cafe|coffee|starbucks|tim hortons|mcdonald|dining|dinner|lunch|bar &|pub/i, category: 'Dining Out' },
+  { pattern: /cinema|movie|concert|theatre|theater|steam|playstation|xbox|spotify/i, category: 'Entertainment' },
+  { pattern: /pharmacy|chemist|clinic|dental|doctor|hospital|shoppers drug|health/i, category: 'Healthcare' },
+  { pattern: /hydro|water|electric|utility|internet|telus|rogers|bell|gas bill/i, category: 'Utilities' },
+  { pattern: /savings|invest|wealthsimple|rrsp|tfsa/i, category: 'Savings' },
+  { pattern: /betway|sportpesa|hollywoodbets|casino|bet365|draftkings/i, category: 'Betting' },
+  { pattern: /transfer|e-transfer|etransfer/i, category: 'Transfer' },
 ] as const;
 
 /**

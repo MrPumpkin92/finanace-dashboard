@@ -1,7 +1,6 @@
 import React from 'react';
 import { formatCurrency } from '../utils/formatting';
 import { MonthSummary } from '../types/index';
-import CategoryBadge from './CategoryBadge';
 
 interface MonthlySummaryBarProps {
   summary: MonthSummary | undefined;

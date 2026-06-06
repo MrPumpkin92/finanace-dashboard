@@ -56,19 +56,38 @@ export async function getPowerBIAccessToken(): Promise<string> {
   }
 }
 
+const POWER_BI_ENV_VARS = [
+  'AZURE_TENANT_ID',
+  'AZURE_CLIENT_ID',
+  'AZURE_CLIENT_SECRET',
+  'POWER_BI_WORKSPACE_ID',
+  'POWER_BI_REPORT_ID',
+];
+
 /**
- * Validate that required environment variables are set
+ * Returns the list of Power BI / Azure environment variables that are not set.
+ */
+export function getMissingPowerBIConfig(): string[] {
+  return POWER_BI_ENV_VARS.filter((envVar) => !process.env[envVar]);
+}
+
+/**
+ * Whether the optional Power BI integration is fully configured.
+ *
+ * The core dashboard (transactions, categories, native charts) works without
+ * this. Power BI embedding and dataset sync are only enabled when every Azure
+ * credential is present.
+ */
+export function isPowerBIConfigured(): boolean {
+  return getMissingPowerBIConfig().length === 0;
+}
+
+/**
+ * Validate that required environment variables are set.
+ * Throws when Power BI is not configured — use only where Power BI is required.
  */
 export function validateAuthConfig(): void {
-  const requiredEnvVars = [
-    'AZURE_TENANT_ID',
-    'AZURE_CLIENT_ID',
-    'AZURE_CLIENT_SECRET',
-    'POWER_BI_WORKSPACE_ID',
-    'POWER_BI_REPORT_ID',
-  ];
-
-  const missingVars = requiredEnvVars.filter((envVar) => !process.env[envVar]);
+  const missingVars = getMissingPowerBIConfig();
 
   if (missingVars.length > 0) {
     throw new Error(`Missing required environment variables: ${missingVars.join(', ')}`);

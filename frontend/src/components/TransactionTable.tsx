@@ -1,5 +1,5 @@
 import React from 'react';
-import { formatCurrency, formatDate, formatRelativeDate } from '../utils/formatting';
+import { formatRelativeDate } from '../utils/formatting';
 import { Transaction, Category } from '../types/index';
 import CategoryBadge from './CategoryBadge';
 import AmountDisplay from './AmountDisplay';

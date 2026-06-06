@@ -73,13 +73,17 @@ export class TransactionRepository {
     `;
     const params: unknown[] = [userId];
 
+    // NOTE: every column here is qualified with the `t.` alias. The LEFT JOIN to
+    // `categories` brings in columns that also exist on `transactions` (notably
+    // `type`), so unqualified references would be ambiguous and SQLite would
+    // throw "ambiguous column name".
     if (filter?.startDate) {
-      query += ' AND date >= ?';
+      query += ' AND t.date >= ?';
       params.push(filter.startDate);
     }
 
     if (filter?.endDate) {
-      query += ' AND date <= ?';
+      query += ' AND t.date <= ?';
       params.push(filter.endDate);
     }
 
@@ -89,22 +93,22 @@ export class TransactionRepository {
     }
 
     if (filter?.type) {
-      query += ' AND type = ?';
+      query += ' AND t.type = ?';
       params.push(filter.type);
     }
 
     if (filter?.minAmount !== undefined) {
-      query += ' AND amount >= ?';
+      query += ' AND t.amount >= ?';
       params.push(filter.minAmount);
     }
 
     if (filter?.maxAmount !== undefined) {
-      query += ' AND amount <= ?';
+      query += ' AND t.amount <= ?';
       params.push(filter.maxAmount);
     }
 
     if (filter?.searchTerm) {
-      query += ' AND (description LIKE ? OR notes LIKE ?)';
+      query += ' AND (t.description LIKE ? OR t.notes LIKE ?)';
       const searchPattern = `%${filter.searchTerm}%`;
       params.push(searchPattern, searchPattern);
     }
