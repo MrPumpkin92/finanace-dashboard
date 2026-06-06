@@ -166,13 +166,6 @@ is "running in local-only mode." Full Azure walkthrough: [docs/AZURE_SETUP.md](d
 
 ---
 
-## For interviewers / reviewers
-
-This project doubles as a worked example of the skills behind a maintenance/finance
-reporting role: cleaning and importing messy spreadsheet data, modeling it, tracking
-KPIs, and publishing leadership dashboards (both built-in and Power BI). See
-[INTERVIEW_GUIDE.md](INTERVIEW_GUIDE.md) for a guided tour.
-
 ## License
 
 MIT
